@@ -1,5 +1,5 @@
-[tasks.BUILD]
-description = "build"
+[tasks.RUN]
+description = "build and run"
 script = ['''
 #!/bin/bash
 set -xue
