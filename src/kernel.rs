@@ -11,7 +11,10 @@ use core::arch::asm;
 use core::panic::PanicInfo;
 
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
+fn panic(info: &PanicInfo) -> ! {
+    let mut buf = [0u8; 64];
+    let _s: &str =
+        write_to::show(&mut buf, format_args!("panicked at: {:?}", info.location())).unwrap();
     loop {}
 }
 

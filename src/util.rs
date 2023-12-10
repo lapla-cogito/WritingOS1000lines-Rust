@@ -89,3 +89,52 @@ pub fn strcmp(s1: *const u8, s2: *const u8) -> i32 {
         (*p_s1).cmp(&(*p_s2)) as i32
     }
 }
+
+pub mod write_to {
+    use core::cmp::min;
+    use core::fmt;
+    use core::str::from_utf8_unchecked;
+
+    pub struct WriteTo<'a> {
+        buffer: &'a mut [u8],
+        used: usize,
+    }
+
+    impl<'a> WriteTo<'a> {
+        pub fn new(buffer: &'a mut [u8]) -> Self {
+            WriteTo { buffer, used: 0 }
+        }
+
+        pub fn as_str(self) -> Option<&'a str> {
+            if self.used <= self.buffer.len() {
+                Some(unsafe { from_utf8_unchecked(&self.buffer[..self.used]) })
+            } else {
+                None
+            }
+        }
+    }
+
+    impl<'a> fmt::Write for WriteTo<'a> {
+        fn write_str(&mut self, s: &str) -> fmt::Result {
+            if self.used > self.buffer.len() {
+                return Err(fmt::Error);
+            }
+            let remaining_buf = &mut self.buffer[self.used..];
+            let raw_s = s.as_bytes();
+            let write_num = min(raw_s.len(), remaining_buf.len());
+            remaining_buf[..write_num].copy_from_slice(&raw_s[..write_num]);
+            self.used += raw_s.len();
+            if write_num < raw_s.len() {
+                Err(fmt::Error)
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    pub fn show<'a>(buffer: &'a mut [u8], args: fmt::Arguments) -> Result<&'a str, fmt::Error> {
+        let mut w = WriteTo::new(buffer);
+        fmt::write(&mut w, args)?;
+        w.as_str().ok_or(fmt::Error)
+    }
+}
