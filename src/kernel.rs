@@ -9,8 +9,8 @@ mod sbi;
 mod util;
 
 use crate::util::*;
-use core::arch::asm;
-use core::panic::PanicInfo;
+use constants::*;
+use core::{arch::asm, panic::PanicInfo, ptr::addr_of};
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
@@ -22,6 +22,24 @@ extern "C" {
     static __bss: u8;
     static __bss_end: u8;
     static __stack_top: u8;
+    static __free_ram: u8;
+    static __free_ram_end: u8;
+}
+
+static mut NEXT_PADDR: usize = 0;
+fn alloc_pages(n: u32) -> usize {
+    unsafe {
+        let paddr = NEXT_PADDR;
+        NEXT_PADDR += n as usize * PAGE_SIZE;
+
+        if NEXT_PADDR > addr_of!(__free_ram_end) as usize {
+            println!("failed to allocate memory");
+            loop {}
+        }
+
+        memset(paddr as *const u8 as *mut u8, 0, n as usize * PAGE_SIZE);
+        paddr
+    }
 }
 
 #[no_mangle]
@@ -32,12 +50,13 @@ fn kernel_main() {
             0,
             (__bss_end - __bss) as usize,
         );
+        NEXT_PADDR = addr_of!(__free_ram) as usize;
     }
 
-    write_csr!("stvec", kernel_entry as u32);
-    unsafe {
-        asm!("unimp");
-    }
+    let addr0 = alloc_pages(2);
+    let addr1 = alloc_pages(1);
+    println!("addr0: {:x}, addr1: {:x}", addr0, addr1);
+    loop {}
 }
 
 #[no_mangle]

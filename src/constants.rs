@@ -10,6 +10,7 @@ pub const SBI_ERR_INVALID_ADDRESS: isize = -5;
 pub const SBI_ERR_ALREADY_AVAILABLE: isize = -6;
 pub const SBI_ERR_ALREADY_STARTED: isize = -7;
 pub const SBI_ERR_ALREADY_STOPPED: isize = -8;
+pub const PAGE_SIZE: usize = 4096;
 
 pub type Bool = i32;
 pub type SizeT = u32;
