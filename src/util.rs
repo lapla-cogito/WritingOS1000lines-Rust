@@ -38,7 +38,7 @@ pub fn putchar(c: char) -> Result<(), SbiErr> {
     Ok(())
 }
 
-fn memset(dest: *mut u8, val: u8, count: usize) {
+pub fn memset(dest: *mut u8, val: u8, count: usize) {
     for i in 0..count {
         unsafe {
             *dest.offset(i as isize) = val;
@@ -90,51 +90,91 @@ pub fn strcmp(s1: *const u8, s2: *const u8) -> i32 {
     }
 }
 
-pub mod write_to {
-    use core::cmp::min;
-    use core::fmt;
-    use core::str::from_utf8_unchecked;
+#[macro_export]
+macro_rules! print {
+    ($($arg:tt)*) => ({
+        use core::fmt::Write;
+        let _ = write!(crate::Writer, $($arg)*);
+    });
+}
 
-    pub struct WriteTo<'a> {
-        buffer: &'a mut [u8],
-        used: usize,
-    }
+#[macro_export]
+macro_rules! println {
+    ($($arg:tt)*) => ({
+        print!("{}\n", format_args!($($arg)*));
+    });
+}
 
-    impl<'a> WriteTo<'a> {
-        pub fn new(buffer: &'a mut [u8]) -> Self {
-            WriteTo { buffer, used: 0 }
-        }
+pub struct Writer;
 
-        pub fn as_str(self) -> Option<&'a str> {
-            if self.used <= self.buffer.len() {
-                Some(unsafe { from_utf8_unchecked(&self.buffer[..self.used]) })
-            } else {
-                None
+impl core::fmt::Write for Writer {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        for c in s.bytes() {
+            unsafe {
+                asm!(
+                    "ecall",
+                    in("a0") c,
+                    in("a6") 0,
+                    in("a7") 1,
+                );
             }
         }
+        Ok(())
     }
+}
 
-    impl<'a> fmt::Write for WriteTo<'a> {
-        fn write_str(&mut self, s: &str) -> fmt::Result {
-            if self.used > self.buffer.len() {
-                return Err(fmt::Error);
-            }
-            let remaining_buf = &mut self.buffer[self.used..];
-            let raw_s = s.as_bytes();
-            let write_num = min(raw_s.len(), remaining_buf.len());
-            remaining_buf[..write_num].copy_from_slice(&raw_s[..write_num]);
-            self.used += raw_s.len();
-            if write_num < raw_s.len() {
-                Err(fmt::Error)
-            } else {
-                Ok(())
-            }
+#[repr(C)]
+#[repr(packed)]
+pub struct TrapFrame {
+    ra: u32,
+    gp: u32,
+    tp: u32,
+    t0: u32,
+    t1: u32,
+    t2: u32,
+    t3: u32,
+    t4: u32,
+    t5: u32,
+    t6: u32,
+    a0: u32,
+    a1: u32,
+    a2: u32,
+    a3: u32,
+    a4: u32,
+    a5: u32,
+    a6: u32,
+    a7: u32,
+    s0: u32,
+    s1: u32,
+    s2: u32,
+    s3: u32,
+    s4: u32,
+    s5: u32,
+    s6: u32,
+    s7: u32,
+    s8: u32,
+    s9: u32,
+    s10: u32,
+    s11: u32,
+    sp: u32,
+}
+
+#[macro_export]
+macro_rules! read_csr {
+    ($csr:literal) => {{
+        let mut val: u32;
+        unsafe {
+            ::core::arch::asm!(concat!("csrr {}, ", $csr), out(reg) val);
         }
-    }
+        val
+    }};
+}
 
-    pub fn show<'a>(buffer: &'a mut [u8], args: fmt::Arguments) -> Result<&'a str, fmt::Error> {
-        let mut w = WriteTo::new(buffer);
-        fmt::write(&mut w, args)?;
-        w.as_str().ok_or(fmt::Error)
-    }
+#[macro_export]
+macro_rules! write_csr {
+    ($csr:literal, $val:expr) => {{
+        unsafe{
+        ::core::arch::asm!(concat!("csrw ", $csr, ", {}"), in(reg) $val);
+        }
+    }};
 }
