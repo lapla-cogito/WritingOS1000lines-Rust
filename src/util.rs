@@ -20,7 +20,7 @@ unsafe fn sbi_call(
         in("a4") arg4,
         in("a5") arg5,
         in("a6") fid,
-        in("a7") eid as usize,
+        in("a7") eid,
     );
 
     let err = arg0 as isize;
@@ -41,7 +41,7 @@ pub fn putchar(c: char) -> Result<(), SbiErr> {
 pub fn memset(dest: *mut u8, val: u8, count: usize) {
     for i in 0..count {
         unsafe {
-            *dest.offset(i as isize) = val;
+            *dest.add(i) = val;
         }
     }
 }
@@ -94,7 +94,7 @@ pub fn strcmp(s1: *const u8, s2: *const u8) -> i32 {
 macro_rules! print {
     ($($arg:tt)*) => ({
         use core::fmt::Write;
-        let _ = write!(crate::Writer, $($arg)*);
+        let _ = write!($crate::Writer, $($arg)*);
     });
 }
 

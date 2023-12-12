@@ -89,10 +89,8 @@ fn kernel_main() {
         NEXT_PADDR = addr_of!(__free_ram) as usize;
         write_csr!("stvec", kernel_entry as usize);
 
-        PROC_A = create_process(proc_a_entry as u32);
-        PROC_B = create_process(proc_b_entry as u32);
-        // println!("sp: {:x}", PROC_A.sp);
-        // println!("sp: {:x}", PROC_B.sp);
+        PROC_A = create_process(proc_a_entry as usize);
+        PROC_B = create_process(proc_b_entry as usize);
 
         proc_a_entry();
     }

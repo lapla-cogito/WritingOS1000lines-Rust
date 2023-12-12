@@ -63,7 +63,7 @@ pub unsafe extern "C" fn switch_context(prev_sp: &*mut u32, next_sp: &*mut u32) 
     );
 }
 
-pub unsafe fn create_process(pc: u32) -> Process {
+pub unsafe fn create_process(pc: usize) -> Process {
     let mut proc: Option<Process> = None;
     let mut i = 0;
 
@@ -78,8 +78,6 @@ pub unsafe fn create_process(pc: u32) -> Process {
     if proc.is_some() {
         let slice = &PROCS[i].stack;
         let sp = slice.as_ptr().offset(8192) as *mut u32;
-        println!("sp: {:x?}", sp);
-        println!("slice: {:x?}", slice.as_ptr());
         unsafe {
             sp.offset(-4).write(0); // s11
             sp.offset(-8).write(0); // s10
@@ -98,7 +96,7 @@ pub unsafe fn create_process(pc: u32) -> Process {
 
         PROCS[i].pid = i as i32 + 1;
         PROCS[i].state = PROC_READY;
-        PROCS[i].sp = sp.offset(-52) as *mut u32;
+        PROCS[i].sp = sp.offset(-52);
         PROCS[i]
     } else {
         println!("no free process slot");
