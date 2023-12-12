@@ -5,12 +5,14 @@
 #![feature(naked_functions)]
 
 mod constants;
+mod process;
 mod sbi;
 mod util;
 
 use crate::util::*;
 use constants::*;
 use core::{arch::asm, panic::PanicInfo, ptr::addr_of};
+use process::{create_process, switch_context};
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
@@ -42,6 +44,40 @@ fn alloc_pages(n: u32) -> usize {
     }
 }
 
+static mut PROC_A: process::Process = process::Process::new();
+static mut PROC_B: process::Process = process::Process::new();
+
+#[no_mangle]
+fn proc_a_entry() {
+    loop {
+        let _res = putchar('A');
+        unsafe {
+            switch_context(&PROC_A.sp, &PROC_B.sp);
+        }
+        for _ in 0..10000000 {
+            unsafe {
+                asm!("nop");
+            }
+        }
+    }
+}
+
+#[no_mangle]
+fn proc_b_entry() {
+    loop {
+        let _res = putchar('B');
+        unsafe {
+            switch_context(&PROC_B.sp, &PROC_A.sp);
+        }
+
+        for _ in 0..10000000 {
+            unsafe {
+                asm!("nop");
+            }
+        }
+    }
+}
+
 #[no_mangle]
 fn kernel_main() {
     unsafe {
@@ -51,11 +87,16 @@ fn kernel_main() {
             (__bss_end - __bss) as usize,
         );
         NEXT_PADDR = addr_of!(__free_ram) as usize;
+        write_csr!("stvec", kernel_entry as usize);
+
+        PROC_A = create_process(proc_a_entry as u32);
+        PROC_B = create_process(proc_b_entry as u32);
+        // println!("sp: {:x}", PROC_A.sp);
+        // println!("sp: {:x}", PROC_B.sp);
+
+        proc_a_entry();
     }
 
-    let addr0 = alloc_pages(2);
-    let addr1 = alloc_pages(1);
-    println!("addr0: {:x}, addr1: {:x}", addr0, addr1);
     loop {}
 }
 
@@ -73,7 +114,7 @@ pub unsafe extern "C" fn boot() -> ! {
 
 #[allow(dead_code)]
 #[no_mangle]
-extern "C" fn handle_trap(frame: TrapFrame) {
+extern "C" fn handle_trap(_frame: TrapFrame) {
     let mut scause: u32;
     let mut stval: u32;
     let mut sepc: u32;

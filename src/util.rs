@@ -101,6 +101,7 @@ macro_rules! print {
 #[macro_export]
 macro_rules! println {
     ($($arg:tt)*) => ({
+        use crate::print;
         print!("{}\n", format_args!($($arg)*));
     });
 }
@@ -173,8 +174,6 @@ macro_rules! read_csr {
 #[macro_export]
 macro_rules! write_csr {
     ($csr:literal, $val:expr) => {{
-        unsafe{
         ::core::arch::asm!(concat!("csrw ", $csr, ", {}"), in(reg) $val);
-        }
     }};
 }

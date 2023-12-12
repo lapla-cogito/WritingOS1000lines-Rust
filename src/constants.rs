@@ -18,3 +18,7 @@ pub type PaddrT = u32;
 pub type VaddrT = u32;
 
 pub const NULL: *const c_void = core::ptr::null();
+
+pub const PROCS_MAX: usize = 8;
+pub const PROC_UNUSED: i32 = 0;
+pub const PROC_READY: i32 = 1;
