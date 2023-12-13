@@ -20,5 +20,12 @@ pub type VaddrT = u32;
 pub const NULL: *const c_void = core::ptr::null();
 
 pub const PROCS_MAX: usize = 8;
-pub const PROC_UNUSED: i32 = 0;
-pub const PROC_READY: i32 = 1;
+pub const PROC_UNUSED: i64 = 0;
+pub const PROC_READY: i64 = 1;
+
+pub const SATP_SV32: u32 = 1 << 31;
+pub const PAGE_V: u32 = 1 << 0;
+pub const PAGE_R: u32 = 1 << 1;
+pub const PAGE_W: u32 = 1 << 2;
+pub const PAGE_X: u32 = 1 << 3;
+pub const PAGE_S: u32 = 1 << 4;

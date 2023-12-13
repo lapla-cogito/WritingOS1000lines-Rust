@@ -3,75 +3,60 @@
 #![feature(c_variadic)]
 #![feature(fn_align)]
 #![feature(naked_functions)]
+#![feature(asm_const)]
+#![feature(offset_of)]
 
 mod constants;
+mod paging;
 mod process;
 mod sbi;
 mod util;
 
-use crate::util::*;
-use constants::*;
+use crate::{
+    paging::NEXT_PADDR,
+    process::{yield_proc, CURRENT_PROC, IDLE_PROC},
+    util::*,
+};
 use core::{arch::asm, panic::PanicInfo, ptr::addr_of};
-use process::{create_process, switch_context};
+use process::create_process;
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    println!("{}", info);
-    loop {}
+    println!("{info}");
+    loop {
+        unsafe {
+            asm!("wfi");
+        }
+    }
 }
 
 extern "C" {
     static __bss: u8;
     static __bss_end: u8;
-    static __stack_top: u8;
-    static __free_ram: u8;
+    static __stack_top: u32;
+    static mut __free_ram: u8;
     static __free_ram_end: u8;
+    static __kernel_base: u8;
 }
 
-static mut NEXT_PADDR: usize = 0;
-fn alloc_pages(n: u32) -> usize {
-    unsafe {
-        let paddr = NEXT_PADDR;
-        NEXT_PADDR += n as usize * PAGE_SIZE;
-
-        if NEXT_PADDR > addr_of!(__free_ram_end) as usize {
-            println!("failed to allocate memory");
-            loop {}
-        }
-
-        memset(paddr as *const u8 as *mut u8, 0, n as usize * PAGE_SIZE);
-        paddr
-    }
-}
-
-static mut PROC_A: process::Process = process::Process::new();
-static mut PROC_B: process::Process = process::Process::new();
-
-#[no_mangle]
 fn proc_a_entry() {
     loop {
         let _res = putchar('A');
         unsafe {
-            switch_context(&PROC_A.sp, &PROC_B.sp);
-        }
-        for _ in 0..10000000 {
-            unsafe {
+            yield_proc();
+            for _ in 0..10000000 {
                 asm!("nop");
             }
         }
     }
 }
 
-#[no_mangle]
 fn proc_b_entry() {
     loop {
         let _res = putchar('B');
         unsafe {
-            switch_context(&PROC_B.sp, &PROC_A.sp);
-        }
-
-        for _ in 0..10000000 {
-            unsafe {
+            yield_proc();
+            for _ in 0..10000000 {
                 asm!("nop");
             }
         }
@@ -86,24 +71,27 @@ fn kernel_main() {
             0,
             (__bss_end - __bss) as usize,
         );
-        NEXT_PADDR = addr_of!(__free_ram) as usize;
+        NEXT_PADDR = addr_of!(__free_ram) as u32;
         write_csr!("stvec", kernel_entry as usize);
 
-        PROC_A = create_process(proc_a_entry as usize);
-        PROC_B = create_process(proc_b_entry as usize);
+        IDLE_PROC = create_process(0);
+        (*IDLE_PROC).pid = -1;
+        CURRENT_PROC = IDLE_PROC;
 
-        proc_a_entry();
+        create_process(proc_a_entry as u32);
+        create_process(proc_b_entry as u32);
+        yield_proc();
     }
 
-    loop {}
+    unreachable!();
 }
 
 #[no_mangle]
 #[link_section = ".text.boot"]
 pub unsafe extern "C" fn boot() -> ! {
     asm!(
-        "mv sp, {stack_top}\n
-        j {kernel_main}\n",
+        "mv sp, {stack_top}
+        j {kernel_main}",
         stack_top = in(reg) &__stack_top,
         kernel_main = sym kernel_main,
     );
@@ -121,8 +109,7 @@ extern "C" fn handle_trap(_frame: TrapFrame) {
         asm!("csrr {}, stval", out(reg) stval);
         asm!("csrr {}, sepc", out(reg) sepc);
     }
-    println!("scause: {:x}, stval: {:x}, sepc: {:x}", scause, stval, sepc);
-    loop {}
+    panic!("scause: {:x}, stval: {:x}, sepc: {:x}", scause, stval, sepc);
 }
 
 #[no_mangle]
