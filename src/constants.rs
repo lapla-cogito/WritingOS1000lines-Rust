@@ -1,4 +1,4 @@
-use core::ffi::c_void;
+#![allow(unused)]
 
 pub type SbiErr = isize;
 pub const SBI_SUCCESS: isize = 0;
@@ -17,7 +17,7 @@ pub type SizeT = u32;
 pub type PaddrT = u32;
 pub type VaddrT = u32;
 
-pub const NULL: *const c_void = core::ptr::null();
+pub const NULL: *const core::ffi::c_void = core::ptr::null();
 
 pub const PROCS_MAX: usize = 8;
 pub const PROC_UNUSED: i64 = 0;

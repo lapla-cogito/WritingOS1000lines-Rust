@@ -2,9 +2,6 @@
 #![no_main]
 #![feature(c_variadic)]
 #![feature(fn_align)]
-#![feature(naked_functions)]
-#![feature(asm_const)]
-#![feature(offset_of)]
 
 mod constants;
 mod paging;
@@ -12,20 +9,12 @@ mod process;
 mod sbi;
 mod util;
 
-use crate::{
-    paging::NEXT_PADDR,
-    process::{yield_proc, CURRENT_PROC, IDLE_PROC},
-    util::*,
-};
-use core::{arch::asm, panic::PanicInfo, ptr::addr_of};
-use process::create_process;
-
 #[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
+fn panic(info: &core::panic::PanicInfo) -> ! {
     println!("{info}");
     loop {
         unsafe {
-            asm!("wfi");
+            core::arch::asm!("wfi");
         }
     }
 }
@@ -41,11 +30,11 @@ extern "C" {
 
 fn proc_a_entry() {
     loop {
-        let _res = putchar('A');
+        let _res = crate::util::putchar('A');
         unsafe {
-            yield_proc();
+            crate::process::yield_proc();
             for _ in 0..10000000 {
-                asm!("nop");
+                core::arch::asm!("nop");
             }
         }
     }
@@ -53,11 +42,11 @@ fn proc_a_entry() {
 
 fn proc_b_entry() {
     loop {
-        let _res = putchar('B');
+        let _res = crate::util::putchar('B');
         unsafe {
-            yield_proc();
+            crate::process::yield_proc();
             for _ in 0..10000000 {
-                asm!("nop");
+                core::arch::asm!("nop");
             }
         }
     }
@@ -66,21 +55,21 @@ fn proc_b_entry() {
 #[no_mangle]
 fn kernel_main() {
     unsafe {
-        memset(
+        crate::util::memset(
             &__bss as *const u8 as *mut u8,
             0,
             (__bss_end - __bss) as usize,
         );
-        NEXT_PADDR = addr_of!(__free_ram) as u32;
+        crate::paging::NEXT_PADDR = core::ptr::addr_of!(__free_ram) as u32;
         write_csr!("stvec", kernel_entry as usize);
 
-        IDLE_PROC = create_process(0);
-        (*IDLE_PROC).pid = -1;
-        CURRENT_PROC = IDLE_PROC;
+        crate::process::IDLE_PROC = crate::process::create_process(0);
+        (*crate::process::IDLE_PROC).pid = -1;
+        crate::process::CURRENT_PROC = crate::process::IDLE_PROC;
 
-        create_process(proc_a_entry as u32);
-        create_process(proc_b_entry as u32);
-        yield_proc();
+        crate::process::create_process(proc_a_entry as u32);
+        crate::process::create_process(proc_b_entry as u32);
+        crate::process::yield_proc();
     }
 
     unreachable!();
@@ -88,36 +77,37 @@ fn kernel_main() {
 
 #[no_mangle]
 #[link_section = ".text.boot"]
-pub unsafe extern "C" fn boot() -> ! {
-    asm!(
-        "mv sp, {stack_top}
-        j {kernel_main}",
-        stack_top = in(reg) &__stack_top,
-        kernel_main = sym kernel_main,
-    );
-    loop {}
+pub extern "C" fn boot() -> ! {
+    unsafe {
+        core::arch::asm!(
+            "mv sp, {stack_top}
+            j {kernel_main}",
+            stack_top = in(reg) &__stack_top,
+            kernel_main = sym kernel_main,
+            options(noreturn)
+        );
+    }
 }
 
 #[allow(dead_code)]
 #[no_mangle]
-extern "C" fn handle_trap(_frame: TrapFrame) {
+extern "C" fn handle_trap(_frame: crate::util::TrapFrame) {
     let mut scause: u32;
     let mut stval: u32;
     let mut sepc: u32;
     unsafe {
-        asm!("csrr {}, scause", out(reg) scause);
-        asm!("csrr {}, stval", out(reg) stval);
-        asm!("csrr {}, sepc", out(reg) sepc);
+        core::arch::asm!("csrr {}, scause", out(reg) scause);
+        core::arch::asm!("csrr {}, stval", out(reg) stval);
+        core::arch::asm!("csrr {}, sepc", out(reg) sepc);
     }
     panic!("scause: {:x}, stval: {:x}, sepc: {:x}", scause, stval, sepc);
 }
 
 #[no_mangle]
-#[link_section = ".text.boot"]
-#[repr(align(4))]
-#[naked]
-pub unsafe extern "C" fn kernel_entry() {
-    asm!(
+#[align(4)]
+#[unsafe(naked)]
+pub extern "C" fn kernel_entry() {
+    core::arch::naked_asm!(
         "
         csrw sscratch, sp
         addi sp, sp, -4 * 31
@@ -188,6 +178,5 @@ pub unsafe extern "C" fn kernel_entry() {
         lw sp,  4 * 30(sp)
         sret
         ",
-        options(noreturn)
     );
 }
