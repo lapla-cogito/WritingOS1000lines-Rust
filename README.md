@@ -6,3 +6,8 @@
 ```
 $ makers run
 ```
+
+# objdump
+```
+$ makers objdump
+```
