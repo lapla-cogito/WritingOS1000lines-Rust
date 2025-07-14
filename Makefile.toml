@@ -1,4 +1,4 @@
-[tasks.RUN]
+[tasks.run]
 description = "build and run"
 script = ['''
 #!/bin/bash
@@ -13,7 +13,7 @@ $QEMU -machine virt -bios default -nographic -serial mon:stdio --no-reboot \
   -kernel ./target/riscv32i-unknown-none-elf/release/os1000lines_rust
 ''']
 
-[tasks.OBJDUMP]
+[tasks.objdump]
 description = "objdump using llvm-objdump"
 script = ['''
 llvm-objdump -d ./target/riscv32i-unknown-none-elf/release/os1000lines_rust

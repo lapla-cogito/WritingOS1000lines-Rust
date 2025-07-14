@@ -4,5 +4,5 @@
 
 # How to run
 ```
-$ makers RUN
+$ makers run
 ```
